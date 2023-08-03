@@ -1,0 +1,9 @@
+{
+    "cmake.sourceDirectory": "C:/cpp/src",
+    "cmake.buildDirectory": "C:/cpp/build",
+    "files.associations": {
+        "iostream": "cpp",
+        "algorithm": "cpp",
+        "coroutine": "cpp"
+    }
+}
