@@ -4,8 +4,10 @@ cmake_minimum_required(VERSION 3.0.0)
 project(prj VERSION 0.1.0 LANGUAGES C CXX)
 
 # пихаю пути в переменные
-set(imguisrc "C:\\cpp\\src\\imgui")
-set(imguiback "C:\\cpp\\src\\imgui\\backends")
+set(imguisrc ".\\imgui")
+set(imguiback ".\\backends")
+
+#set(CMAKE_BUILD_RPATH "..\\build")
 
 # сначала команда на билд
 add_executable(prj main.cpp gui.cpp)
@@ -17,7 +19,7 @@ target_link_directories(prj BEFORE PUBLIC ${imguisrc})
 target_include_directories(prj PRIVATE ${imguiback})
 target_link_directories(prj BEFORE PUBLIC ${imguiback})
 # добавляем нужные либы
-target_link_libraries(prj PRIVATE imgui "d3d11.lib" "dwmapi.lib")
+target_link_libraries(prj PRIVATE imgui "d3d11.lib" "dwmapi.lib" "gdiplus.lib")
 
 # ВАЖНО
 # Зачем добаляем зависимости, а потом еще и либы и нахуя их компилить?

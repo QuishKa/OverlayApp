@@ -3,6 +3,7 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 
+#include <gdiplus.h>
 #include <d3d11.h>
 #include <dwmapi.h>
 #include <windows.h>
@@ -10,16 +11,20 @@
 
 // declarations
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-MainGui                     MainGui::inst;
-bool                        MainGui::destroyed;
-ID3D11Device*               MainGui::g_pd3dDevice;
-ID3D11DeviceContext*        MainGui::g_pd3dDeviceContext;
-IDXGISwapChain*             MainGui::g_pSwapChain;
-UINT                        MainGui::g_ResizeWidth;
-UINT                        MainGui::g_ResizeHeight;
-ID3D11RenderTargetView*     MainGui::g_mainRenderTargetView;
-WNDCLASSEXW                 MainGui::wc;
-HWND                        MainGui::hwnd;
+MainGui                         MainGui::inst;
+bool                            MainGui::destroyed;
+ID3D11Device*                   MainGui::g_pd3dDevice;
+ID3D11DeviceContext*            MainGui::g_pd3dDeviceContext;
+IDXGISwapChain*                 MainGui::g_pSwapChain;
+UINT                            MainGui::g_ResizeWidth;
+UINT                            MainGui::g_ResizeHeight;
+ID3D11RenderTargetView*         MainGui::g_mainRenderTargetView;
+WNDCLASSEXW                     MainGui::wc;
+HWND                            MainGui::hwnd;
+ULONG_PTR                       MainGui::token;
+Gdiplus::Bitmap*                MainGui::bmp = nullptr;
+ID3D11ShaderResourceView* out_srv;
+bool bitmapset = false;
 
 bool MainGui::MainGuiInit()
 {
@@ -33,7 +38,7 @@ bool MainGui::MainGuiInit()
 
     wc = WNDCLASSEXW{ sizeof(wc), CS_HREDRAW | CS_VREDRAW, inst.WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
     ::RegisterClassExW(&wc);
-    hwnd = ::CreateWindowExW(WS_EX_TRANSPARENT, wc.lpszClassName, L"Dear ImGui DirectX11 Example", WS_POPUP, 0, 0, 1366, 768, nullptr, nullptr, wc.hInstance, nullptr);
+    hwnd = ::CreateWindowExW(WS_EX_TRANSPARENT, wc.lpszClassName, L"Overlay App", WS_POPUP, 0, 0, 1366, 768, nullptr, nullptr, wc.hInstance, nullptr);
     if (!RegisterHotKey(hwnd, 0, MOD_NOREPEAT, VK_TAB))
         printf("Hotkey %s not binded!\n", ImGui::GetKeyName(ImGuiKey(VK_TAB)));
     //SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), BYTE(255), LWA_ALPHA);
@@ -59,9 +64,12 @@ bool MainGui::MainGuiInit()
     io.ConfigViewportsNoDefaultParent = false;
 
     ImGui::StyleColorsDark();
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
+    Gdiplus::GdiplusStartupInput input;
+    Gdiplus::GdiplusStartup(&token, &input, 0);
 
     while (!destroyed) 
     {
@@ -75,78 +83,26 @@ bool MainGui::MainGuiInit()
         }
         if (destroyed)
             break;
-
-        inst.OverlayRender(hwnd, io);
-    }
-
-    if (MainGuiDestroy())
-        return 1;
-
-    return 0;
-}
-
-inline void MainGui::OverlayRender(HWND hwnd, ImGuiIO io) 
-{
-    if (!::IsIconic(hwnd)) 
-    {
-        g_pSwapChain->Present(1, 0);
-        // refresh rate fix
-        /*
-        DXGI_SWAP_CHAIN_DESC dxswap = DXGI_SWAP_CHAIN_DESC();
-        g_pSwapChain->GetDesc(&dxswap);
-        float refresh_interval = 1.0f / 140;
-        float wait_interval = refresh_interval - io.DeltaTime;
-        DWORD wait_time = (DWORD)(wait_interval * 1000), last_wait;
-        if (wait_interval > 0 && wait_time < 1000)
-        {
-        Sleep(wait_time);
-        last_wait = wait_time;
-        }
-        else 
-            wait_time = 0;
-        */
-        //
-
+        
         if (g_ResizeWidth != 0 && g_ResizeHeight != 0)
         {
-            CleanupRenderTarget();
+            inst.CleanupRenderTarget();
             g_pSwapChain->ResizeBuffers(0, g_ResizeWidth, g_ResizeHeight, DXGI_FORMAT_UNKNOWN, 0);
             g_ResizeWidth = g_ResizeHeight = 0;
-            CreateRenderTarget();
+            inst.CreateRenderTarget();
         }
 
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        ImGuiWindowFlags window_flags = 
-            ImGuiWindowFlags_NoDecoration | 
-            ImGuiWindowFlags_NoDocking | 
-            ImGuiWindowFlags_AlwaysAutoResize | 
-            ImGuiWindowFlags_NoSavedSettings | 
-            ImGuiWindowFlags_NoNav;
-        
-        ImGui::SetNextWindowBgAlpha(0.35f);
-        ImGui::Begin("Hello, world!", NULL, window_flags); 
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-        if (ImGui::Button("Quit")) 
-            ::DestroyWindow(hwnd);
-        ImGui::SameLine();
-        if (ImGui::Button("Minimize"))
-            ::CloseWindow(hwnd);
-        ImGui::Separator();
-        if (ImGui::IsMousePosValid())
-            ImGui::Text("Mouse Position: (%.1f,%.1f)", io.MousePos.x, io.MousePos.y);
-        else
-            ImGui::Text("Mouse Position: <invalid>");
-        ImGui::Separator();
-        /*
-        if (wait_time != 0)
-            ImGui::Text("Frame Wait Time: %lu", wait_time);
-        else 
-            ImGui::Text("Frame Wait Time: %lu", last_wait);
-        */
-        ImGui::End();
+        // renders
+        if (!::IsIconic(hwnd)) 
+        {
+            inst.StatsRender(hwnd, io);
+            inst.OverlayRender(hwnd, io);
+        } else Sleep(100);
+        //
 
         ImGui::Render();
         ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -160,7 +116,96 @@ inline void MainGui::OverlayRender(HWND hwnd, ImGuiIO io)
             ImGui::UpdatePlatformWindows();
             ImGui::RenderPlatformWindowsDefault();
         }
-    } else Sleep(100);
+
+        g_pSwapChain->Present(1, 0);
+    }
+
+    if (MainGuiDestroy())
+        return 1;
+
+    return 0;
+}
+
+inline void MainGui::StatsRender(HWND hwnd, ImGuiIO io) 
+{
+        ImGuiWindowFlags window_flags = 
+            ImGuiWindowFlags_NoDecoration | 
+            ImGuiWindowFlags_NoDocking | 
+            ImGuiWindowFlags_AlwaysAutoResize | 
+            ImGuiWindowFlags_NoSavedSettings | 
+            ImGuiWindowFlags_NoNav;
+        
+        ImGui::SetNextWindowBgAlpha(0.9f);
+        ImGui::Begin("Hello, world!", NULL, window_flags); 
+        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+        if (ImGui::Button("Quit")) 
+            ::DestroyWindow(hwnd);
+        ImGui::SameLine();
+        if (ImGui::Button("Minimize"))
+            ::CloseWindow(hwnd);
+        ImGui::Separator();
+        if (ImGui::IsMousePosValid())
+            ImGui::Text("Mouse Position: (%.1f,%.1f)", io.MousePos.x, io.MousePos.y);
+        else
+            ImGui::Text("Mouse Position: <invalid>");
+        ImGui::Separator();
+        ImGui::End();
+}
+
+inline void MainGui::OverlayRender(HWND hwnd, ImGuiIO io) 
+{
+    ImGuiWindowFlags window_flags = 
+        ImGuiWindowFlags_NoDecoration | 
+        ImGuiWindowFlags_NoDocking | 
+        ImGuiWindowFlags_AlwaysAutoResize | 
+        ImGuiWindowFlags_NoSavedSettings | 
+        ImGuiWindowFlags_NoNav;
+
+    if (!bitmapset)
+    {
+        //HBITMAP bitmap = LoadBitmapA(NULL, "C:\\cpp\\src\\textures\\overlay.bmp");
+        bmp = Gdiplus::Bitmap::FromFile(L"C:\\cpp\\src\\textures\\overlay.png");
+        HBITMAP hbitmap = NULL;
+        bmp->GetHBITMAP(Gdiplus::Color(0, 0, 0, 0), &hbitmap);
+        BITMAP bitmap;
+        GetObject(hbitmap, sizeof(bitmap), (LPVOID)&bitmap);
+
+        D3D11_TEXTURE2D_DESC desc;
+        ZeroMemory(&desc, sizeof(desc));
+        desc.Width = bitmap.bmWidth;
+        desc.Height = bitmap.bmHeight;
+        desc.MipLevels = 1;
+        desc.ArraySize = 1;
+        desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        desc.SampleDesc.Count = 1;
+        desc.Usage = D3D11_USAGE_DYNAMIC;
+        desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        desc.MiscFlags = 0;
+
+        ID3D11Texture2D *pTexture = nullptr;
+        D3D11_SUBRESOURCE_DATA subResource;
+        subResource.pSysMem = bitmap.bmBits;
+        subResource.SysMemPitch = bitmap.bmWidthBytes;
+        subResource.SysMemSlicePitch = 0;
+        g_pd3dDevice->CreateTexture2D(&desc, &subResource, &pTexture);
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+        ZeroMemory(&srvDesc, sizeof(srvDesc));
+        srvDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MipLevels = desc.MipLevels;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        g_pd3dDevice->CreateShaderResourceView(pTexture, &srvDesc, &out_srv);
+        pTexture->Release();
+
+        bitmapset = true;
+    }
+
+    ImGui::SetNextWindowBgAlpha(0.0f);
+    ImGui::Begin("Overlay", NULL, window_flags);
+    ImGui::Image((void*)out_srv, ImVec2(bmp->GetWidth(), bmp->GetHeight()));
+    ImGui::End();
 }
 
 bool MainGui::MainGuiDestroy()
@@ -173,6 +218,8 @@ bool MainGui::MainGuiDestroy()
     inst.CleanupDeviceD3D();
     ::DestroyWindow(hwnd);
     ::UnregisterClassW(wc.lpszClassName, wc.hInstance);
+    
+    Gdiplus::GdiplusShutdown(token);
 
     return 0;
 }
@@ -272,4 +319,9 @@ inline void MainGui::CreateRenderTarget()
 inline void MainGui::CleanupRenderTarget()
 {
     if (g_mainRenderTargetView) { g_mainRenderTargetView->Release(); g_mainRenderTargetView = nullptr; }
+}
+
+ID3D11Texture2D* CreateTexture(const char* path) 
+{
+    return (ID3D11Texture2D*)nullptr;
 }
