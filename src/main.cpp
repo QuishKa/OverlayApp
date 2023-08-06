@@ -1,18 +1,14 @@
 #include "gui.h"
 
-#ifdef _DEBUG
-#define DX11_ENABLE_DEBUG_LAYER
-#endif
-
-#ifdef DX11_ENABLE_DEBUG_LAYER
-#include <dxgidebug.h>
-#pragma comment(lib, "dxguid.lib")
-#endif
-
 int main(int, char**)
 {
-    if (MainGui::MainGuiInit())
+    if (OverLayGui::OverlayInit())
         return 1;
+
+    if (OverLayGui::OverlayStart())
+        return 1;
+
+    OverLayGui::OverlayDestroy();
 
     return 0;
 }

@@ -10,7 +10,7 @@ set(imguiback ".\\backends")
 #set(CMAKE_BUILD_RPATH "..\\build")
 
 # сначала команда на билд
-add_executable(prj main.cpp gui.cpp)
+add_executable(prj main.cpp gui.cpp graphics.cpp)
 # добавляем директорию с библиотекой (это запускает ./imgui/CMakeLists.txt)
 add_subdirectory(${imguisrc})
 # зависимости для работы #include
@@ -19,7 +19,7 @@ target_link_directories(prj BEFORE PUBLIC ${imguisrc})
 target_include_directories(prj PRIVATE ${imguiback})
 target_link_directories(prj BEFORE PUBLIC ${imguiback})
 # добавляем нужные либы
-target_link_libraries(prj PRIVATE imgui "d3d11.lib" "dwmapi.lib" "gdiplus.lib")
+target_link_libraries(prj PRIVATE imgui "d3d11.lib" "d2d1.lib" "dwmapi.lib" "gdiplus.lib")
 
 # ВАЖНО
 # Зачем добаляем зависимости, а потом еще и либы и нахуя их компилить?
