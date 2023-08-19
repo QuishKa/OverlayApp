@@ -3,8 +3,6 @@
 //#include "imgui_impl_win32.h"
 //#include "imgui_impl_dx11.h"
 
-#include <windows.h>
-
 // declarations
 //extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 OverLayGui                      OverLayGui::inst;
@@ -20,6 +18,9 @@ RECT rect;
 bool OverLayGui::OverlayInit()
 {
     hInstance = GetModuleHandle(nullptr);
+    destroyed = false;
+    ResizeHeight = 0;
+    ResizeWidth = 0;
     {
         wc = {0};
         wc.cbSize = sizeof(wc);
@@ -36,9 +37,9 @@ bool OverLayGui::OverlayInit()
         wc.hIconSm = nullptr;
         RegisterClassExW(&wc);
     }
-    rect = { 0, 0, 800, 600 };
-    hwnd = ::CreateWindowExW(
-        0,//WS_EX_LAYERED, 
+    rect = { 0, 0, 1366, 768 };
+    hwnd = CreateWindowExW(
+        0, 
         wc.lpszClassName, 
         L"Overlay App", 
         WS_POPUP, 
@@ -52,7 +53,7 @@ bool OverLayGui::OverlayInit()
         nullptr);
     RegisterHotKey(hwnd, 0, MOD_NOREPEAT, VK_TAB);
         //printf("Hotkey %s not binded!\n", ImGui::GetKeyName(ImGuiKey(VK_TAB)));
-    //SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), BYTE(255), LWA_ALPHA);
+    //SetLayeredWindowAttributes(hwnd, RGB(0, 0, 0), BYTE(100), LWA_ALPHA);
     //MARGINS mrg = {-1, -1, -1, -1};
     //DwmExtendFrameIntoClientArea(hwnd, &mrg);
     
@@ -72,7 +73,7 @@ bool OverLayGui::OverlayStart()
     while (!destroyed) 
     {
         MSG msg;
-        while (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
+        while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
@@ -85,7 +86,7 @@ bool OverLayGui::OverlayStart()
         // renders
         if (!IsIconic(hwnd)) 
         {
-            if (render->OverlayRender())
+            if (render->OverlayDraw())
                 break;
             
             if (render->OverlayRender())

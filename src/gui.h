@@ -2,13 +2,13 @@
 
 //#include "imgui.h"
 #include "graphics.h"
-#include <windows.h>
 #include <memory>
 
 class OverLayGui // Singleton
 {
 public:
     OverLayGui(const OverLayGui&) = delete; // no copy
+    OverLayGui& operator=(const OverLayGui&) = delete; // no move
     static bool OverlayInit();
     static bool OverlayStart();
     static void OverlayDestroy() {};
